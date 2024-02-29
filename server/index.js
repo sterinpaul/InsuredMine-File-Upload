@@ -5,6 +5,8 @@ import startServer from './config/serverConnection.js'
 import mongoDBConnect from './config/dbConnection.js'
 import router from './routes/userRouter.js'
 
+import Message from './model/messageModel.js'
+import cron from 'node-cron';
 
 import pidusage from 'pidusage';
 // import {exec} from 'child_process'
@@ -70,3 +72,16 @@ function restartServer() {
 
 // Schedule CPU check every 5 seconds
 setInterval(checkCPU, 5000);
+
+
+
+// Define a cron job to run every minute
+cron.schedule('* * * * *', async () => {
+  // Query the database for messages scheduled to be inserted
+  const messagesToInsert = await Message.find({ updated:false,scheduledAt: { $lte: new Date() } })
+
+  // Insert the retrieved messages into the database
+  messagesToInsert.forEach(async (message) => {
+    await Message.updateOne({_id:message._id},{$set:{ updated:true }})
+  })
+})

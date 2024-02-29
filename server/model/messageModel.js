@@ -6,6 +6,15 @@ const messageSchema = new Schema(
         message:{
             type:String,
             required:true
+        },
+        scheduledAt:{
+            type:String,
+            required:true
+        },
+        updated:{
+            type:Boolean,
+            required:true,
+            default:false
         }
     },
     {
