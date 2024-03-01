@@ -7,8 +7,21 @@ import UsersAccount from "../model/usersAccountModel.js"
 
 const userHelpers = {
     addUser:async(data)=>{
-        const newUser = new User({
-            firstname:data?.firstname,
+        // const newUser = new User({
+            // firstname:data?.firstname,
+            // dob:data?.dob,
+            // address:data?.address,
+            // phone:data?.phone,
+            // state:data?.state,
+            // zip:data?.zip,
+            // email:data?.email,
+            // gender:data?.gender
+        // })
+        // const response = await newUser.save()
+        const response = await User.findOneAndUpdate(
+          {firstname:data?.firstname},
+          {$setOnInsert:{
+            firstname:data.firstname,
             dob:data?.dob,
             address:data?.address,
             phone:data?.phone,
@@ -16,8 +29,9 @@ const userHelpers = {
             zip:data?.zip,
             email:data?.email,
             gender:data?.gender
-        })
-        const response = await newUser.save()
+          }},
+          {upsert:true,new:true}
+        )
         if(response) return response._id
     },
     addAgent:async(agent)=>{
@@ -53,216 +67,262 @@ const userHelpers = {
         if(response) return response._id
     },
     addPolicy:async(data,ids)=>{
-        const newPolicy = new PolicyInfo({
-            policy_number:data?.policy_number,
-            policy_type:data?.policy_type,
-            producer:data?.producer,
-            csr:data?.csr,
-            premium_amount:data?.premium_amount,
-            policy_start_date:data?.policy_start_date,
-            policy_end_date:data?.policy_end_date,
-            category_name:data?.category_name,
-            userId:ids[0],
-            agentId:ids[1],
-            carrierId:ids[2],
-            categoryId:ids[3],
-            accountNameId:ids[4]
-        })
-        const response = await newPolicy.save()
-        if(response) return response
+        // const newPolicy = new PolicyInfo({
+        //     policy_number:data?.policy_number,
+        //     policy_type:data?.policy_type,
+        //     producer:data?.producer,
+        //     csr:data?.csr,
+        //     premium_amount:data?.premium_amount,
+        //     policy_start_date:data?.policy_start_date,
+        //     policy_end_date:data?.policy_end_date,
+        //     userId:ids[0],
+        //     agentId:ids[1],
+        //     carrierId:ids[2],
+        //     categoryId:ids[3],
+        //     accountNameId:ids[4]
+        // })
+        // const response = await newPolicy.save()
+      const response = await PolicyInfo.findOneAndUpdate(
+        {policy_number:data?.policy_number},
+        {$setOnInsert:{
+          policy_number:data.policy_number,
+          policy_type:data?.policy_type,
+          producer:data?.producer,
+          csr:data?.csr,
+          premium_amount:data?.premium_amount,
+          policy_start_date:data?.policy_start_date,
+          policy_end_date:data?.policy_end_date,
+          userId:ids[0],
+          agentId:ids[1],
+          carrierId:ids[2],
+          categoryId:ids[3],
+          accountNameId:ids[4]
+        }},
+        {upsert:true,new:true}
+      )
+      if(response) return response._id
     },
     getUserName:async(userName)=>{
-        const regex = new RegExp(userName,'i')
-        return await UsersAccount.find({account_name:{$regex:regex}},{account_name:1})
+      const regex = new RegExp(userName,'i')
+      return await UsersAccount.find({account_name:{$regex:regex}},{account_name:1})
     },
     getUserPolicy:async(userName)=>{
         return await UsersAccount.aggregate([
-            {
-              $match: {
-                account_name:userName}
+          {
+            $match: {
+              account_name: userName
+            }
+          },
+          {
+            $lookup: {
+              from: "policyinfos",
+              localField: "_id",
+              foreignField: "accountNameId",
+              as: "policyResult",
             },
-            {
-              $lookup: {
-                from: "policyinfos",
-                localField: "_id",
-                foreignField: "accountNameId",
-                as: "result",
-              },
+          },
+          {
+            $unwind: {
+              path: "$policyResult",
             },
-            {
-              $unwind: {
-                path: "$result",
-              },
+          },
+          {
+            $lookup: {
+              from: "agents",
+              localField: "policyResult.agentId",
+              foreignField: "_id",
+              as: "agentResult",
             },
-            {
-              $lookup: {
-                from: "agents",
-                localField: "result.agentId",
-                foreignField: "_id",
-                as: "agentResult",
-              },
+          },
+          {
+            $lookup: {
+              from: "policycarriers",
+              localField: "policyResult.carrierId",
+              foreignField: "_id",
+              as: "carrierResult",
             },
-            {
-              $lookup: {
-                from: "policycarriers",
-                localField: "result.carrierId",
-                foreignField: "_id",
-                as: "carrierResult",
-              },
+          },
+          {
+            $lookup: {
+              from: "policycategories",
+              localField: "policyResult.categoryId",
+              foreignField: "_id",
+              as: "categoryResult",
             },
-            {
-              $unwind: {
-                path: "$agentResult",
-              },
+          },
+          {
+            $unwind: {
+              path: "$categoryResult",
             },
-            {
-              $unwind: {
-                path: "$carrierResult",
-              },
+          },
+          {
+            $unwind: {
+              path: "$agentResult",
             },
-            {
-              $project: {
-                _id: "$result._id",
-                account_name: 1,
-                agent_name: "$agentResult.agent",
-                company_name: "$carrierResult.company_name",
-                category_name: 1,
-                policy_number: "$result.policy_number",
-                policy_type: "$result.policy_type",
-                producer: "$result.producer",
-                csr: "$result.csr",
-                premium_amount: "$result.premium_amount",
-                policy_start_date:
-                  "$result.policy_start_date",
-                policy_end_date: "$result.policy_end_date",
-                category_name: "$result.category_name",
-                createdAt: "$result.createdAt",
-                updatedAt: "$result.updatedAt",
-              },
+          },
+          {
+            $unwind: {
+              path: "$carrierResult",
             },
-          ]
-        )
+          },
+          {
+            $project: {
+              _id: "$policyResult._id",
+              account_name: 1,
+              agent_name: "$agentResult.agent",
+              company_name: "$carrierResult.company_name",
+              category_name:
+                "$categoryResult.category_name",
+              policy_number:
+                "$policyResult.policy_number",
+              policy_type: "$policyResult.policy_type",
+              producer: "$policyResult.producer",
+              csr: "$policyResult.csr",
+              premium_amount:
+                "$policyResult.premium_amount",
+              policy_start_date:
+                "$policyResult.policy_start_date",
+              policy_end_date:
+                "$policyResult.policy_end_date",
+              category_name:
+                "$policyResult.category_name",
+              createdAt: "$policyResult.createdAt",
+              updatedAt: "$policyResult.updatedAt",
+            },
+          },
+        ]
+      )
     },
     getUserPolicies:async()=>{
         return await PolicyInfo.aggregate([
-            {
-              $lookup: {
-                from: "users",
-                localField: "userId",
-                foreignField: "_id",
-                as: "userResult"
-              }
+          {
+            $lookup: {
+              from: "users",
+              localField: "userId",
+              foreignField: "_id",
+              as: "userResult",
             },
-            {
-              $lookup: {
-                from: "agents",
-                localField: "agentId",
-                foreignField: "_id",
-                as: "agentResult"
-              }
+          },
+          {
+            $lookup: {
+              from: "agents",
+              localField: "agentId",
+              foreignField: "_id",
+              as: "agentResult",
             },
-            {
-              $lookup: {
-                from: "policycarriers",
-                localField: "carrierId",
-                foreignField: "_id",
-                as: "carrierResult"
-              }
+          },
+          {
+            $lookup: {
+              from: "policycarriers",
+              localField: "carrierId",
+              foreignField: "_id",
+              as: "carrierResult",
             },
-            {
-              $lookup: {
-                from: "usersaccounts",
-                localField: "accountNameId",
-                foreignField: "_id",
-                as: "accountNameResult"
-              }
+          },
+          {
+            $lookup: {
+              from: "policycategories",
+              localField: "categoryId",
+              foreignField: "_id",
+              as: "categoryResult",
             },
-            {
-              $unwind: {
-                path: "$userResult",
-                preserveNullAndEmptyArrays: true
-              }
+          },
+          {
+            $lookup: {
+              from: "usersaccounts",
+              localField: "accountNameId",
+              foreignField: "_id",
+              as: "accountNameResult",
             },
-            {
-              $unwind: {
-                path: "$agentResult",
-                preserveNullAndEmptyArrays: true
-              }
+          },
+          {
+            $unwind: {
+              path: "$userResult",
             },
-            {
-              $unwind: {
-                path: "$carrierResult",
-                preserveNullAndEmptyArrays: true
-              }
+          },
+          {
+            $unwind: {
+              path: "$agentResult",
             },
-            {
-              $unwind: {
-                path: "$accountNameResult",
-                preserveNullAndEmptyArrays: true
-              }
+          },
+          {
+            $unwind: {
+              path: "$carrierResult",
             },
-            {
-              $project: {
-                _id: "$accountNameResult._id",
-                firstname: "$userResult.firstname",
-                dob: "$userResult.dob",
-                address: "$userResult.address",
-                phone: "$userResult.phone",
-                state: "$userResult.state",
-                zip: "$userResult.zip",
-                email: "$userResult.email",
-                gender: "$userResult.gender",
-                policy_number: 1,
-                policy_type: 1,
-                producer: 1,
-                csr: 1,
-                agent: "$agentResult.agent",
-                company_name: "$carrierResult.company_name",
-                premium_amount: 1,
-                policy_start_date: 1,
-                policy_end_date: 1,
-                category_name: 1,
-                createdAt: 1,
-                updatedAt: 1,
-                account_name:
-                  "$accountNameResult.account_name"
-              }
+          },
+          {
+            $unwind: {
+              path: "$categoryResult",
             },
-            {
-              $group: {
-                _id: "$_id",
-                account_name: {
-                  $first: "$account_name"
+          },
+          {
+            $unwind: {
+              path: "$accountNameResult",
+            },
+          },
+          {
+            $project: {
+              _id: "$accountNameResult._id",
+              firstname: "$userResult.firstname",
+              dob: "$userResult.dob",
+              address: "$userResult.address",
+              phone: "$userResult.phone",
+              state: "$userResult.state",
+              zip: "$userResult.zip",
+              email: "$userResult.email",
+              gender: "$userResult.gender",
+              policy_number: 1,
+              policy_type: 1,
+              producer: 1,
+              csr: 1,
+              agent: "$agentResult.agent",
+              company_name: "$carrierResult.company_name",
+              category_name:
+                "$categoryResult.category_name",
+              premium_amount: 1,
+              policy_start_date: 1,
+              policy_end_date: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              account_name:
+                "$accountNameResult.account_name",
+            },
+          },
+          {
+            $group: {
+              _id: "$_id",
+              account_name: {
+                $first: "$account_name",
+              },
+              policies: {
+                $push: {
+                  _id: "$_id",
+                  firstname: "$firstname",
+                  dob: "$dob",
+                  address: "$address",
+                  phone: "$phone",
+                  state: "$state",
+                  zip: "$zip",
+                  email: "$email",
+                  gender: "$gender",
+                  policy_number: "$policy_number",
+                  policy_type: "$policy_type",
+                  producer: "$producer",
+                  csr: "$csr",
+                  agent: "$agent",
+                  company_name: "$company_name",
+                  premium_amount: "$premium_amount",
+                  policy_start_date: "$policy_start_date",
+                  policy_end_date: "$policy_end_date",
+                  category_name: "$category_name",
+                  createdAt: "$createdAt",
+                  updatedAt: "$updatedAt",
                 },
-                policies: {
-                  $push: {
-                    _id: "$_id",
-                    firstname: "$firstname",
-                    dob: "$dob",
-                    address: "$address",
-                    phone: "$phone",
-                    state: "$state",
-                    zip: "$zip",
-                    email: "$email",
-                    gender: "$gender",
-                    policy_number: "$policy_number",
-                    policy_type: "$policy_type",
-                    producer: "$producer",
-                    csr: "$csr",
-                    agent: "$agent",
-                    company_name: "$company_name",
-                    premium_amount: "$premium_amount",
-                    policy_start_date: "$policy_start_date",
-                    policy_end_date: "$policy_end_date",
-                    category_name: "$category_name",
-                    createdAt: "$createdAt",
-                    updatedAt: "$updatedAt"
-                  }
-                }
-              }
-            }
-          ]
-        )
+              },
+            },
+          },
+        ]
+      )
     }
 }
 export default userHelpers

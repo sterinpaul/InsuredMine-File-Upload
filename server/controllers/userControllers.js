@@ -12,27 +12,32 @@ const userControllers = {
         if(isMainThread){
             const worker = new Worker(workerPath)
             worker.on('message',async(data)=>{
-                for(let single of data){
-                    const promiseArray = [
-                        userHelpers.addUser(single),
-                        userHelpers.addAgent(single.agent),
-                        userHelpers.addCarrier(single.company_name),
-                        userHelpers.addCategory(single.category_name),
-                        userHelpers.addAccountName(single.account_name)
-                    ]
-                    const result = await Promise.allSettled(promiseArray)
-                    const response = result.every(singleResult=>singleResult.status === 'fulfilled')
-                    
-                    if(response){
-                        const ids = result.map(singleId=>singleId.value)
-                        await userHelpers.addPolicy(single,ids)
+                const policyPromiseArray = []
+                try{
+                    for(let single of data){
+                        const promiseArray = [
+                            userHelpers.addUser(single),
+                            userHelpers.addAgent(single.agent),
+                            userHelpers.addCarrier(single.company_name),
+                            userHelpers.addCategory(single.category_name),
+                            userHelpers.addAccountName(single.account_name)
+                        ]
+                        const result = await Promise.allSettled(promiseArray)
+                        const response = result.every(singleResult=>singleResult.status === 'fulfilled')
+                        
+                        if(response){
+                            const ids = result.map(singleId=>singleId.value)
+                            policyPromiseArray.push(userHelpers.addPolicy(single,ids))
+                        }
                     }
+                    const resultPromise = await Promise.all(policyPromiseArray)
+                    if(resultPromise) res.status(200).json({message:`Policies added/existing : ${resultPromise.length}`})
+                }catch(error){
+                    res.status(404).send(`Error occured : ${error}`)
                 }
-                
-                res.status(200).json(data)
             })
             worker.on('error',(msg)=>{
-                res.status(404).send(`Result is ${msg}`)
+                res.status(404).send(`Error occured : ${msg}`)
             })
             
             worker.on('exit',(code)=>{
