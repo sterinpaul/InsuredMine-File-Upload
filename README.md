@@ -25,6 +25,7 @@ The InsuredMine project is a backend application developed in Node.js that handl
 - Separates data into different MongoDB collections (Agent, User, User's Account, LOB, Carrier, Policy)
 - Utilizes MongoDB for efficient storage and retrieval
 - Checking cpu usage with 5 second interval. If cpu usage exeeds 70%, the server will restart.
+- Added a post-service that takes the message, day, and time and it inserts that message into DB at that particular day and time.
 
 ## Getting Started
 
